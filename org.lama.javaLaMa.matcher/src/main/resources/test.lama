@@ -1,0 +1,8 @@
+def tagset dependencies Dep {
+	D
+	E
+	F
+	def subset ng {
+		D, E
+	}
+}

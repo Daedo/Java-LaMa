@@ -1,0 +1,176 @@
+grammar org.lama.javaLaMa.LaMaDSL with org.eclipse.xtext.common.Terminals
+
+generate laMaDSL "http://www.lama.org/javaLaMa/LaMaDSL"
+
+
+
+Root:
+	imports+=Import*
+	definitions+=Definition+
+;
+
+Import:
+	'import' importedURI = STRING
+;
+
+Definition:
+	DependencyRulesetDefintion |
+	// TokenGrammarDefintion |
+	POSTagsetDefintion |
+	DependencyTagsetDefinition
+;
+
+// Dependency Rulesets
+DependencyRulesetDefintion:
+	"def" "dependency" "ruleset" name=QualifiedName "{" 
+		(
+			subtrees = SubtreeDefinition &
+			posTagset = POSTagsetImport &
+			dependencyTagset = DependencyTagsetImport
+		)
+			(rules+= RuleDef)+
+			
+	"}"
+;
+
+SubtreeDefinition:
+	"def" "subtrees" ( trees+=TreeTag (',' (trees+= TreeTag))*)
+;
+
+TreeTag:
+	name = ID
+;
+
+POSTagsetImport:
+	"use" "parts-of-speech" "tagset" importedNamespace = [POSTagsetDefintion|ID] 
+;
+
+DependencyTagsetImport:
+	"use" "dependency" "tagset" importedNamespace = [DependencyTagsetDefinition|ID]
+;
+
+RuleDef:
+	"def" "rule" name = ID "{"
+		(ruleParts+=DependencyRule)+
+	"}"
+;
+
+DependencyRule:
+	(leftNode = DependencyRuleTreeNode    '-' dTag=DependencyMatcher '->' rightNode = (DependencyRuleNode|FreeDependencyRule)) |
+	(leftNode = DependencyRuleNonTreeNode '-' dTag=DependencyMatcher '->' rightNode = (DependencyRuleTreeNode|DependencyRule))
+;
+
+FreeDependencyRule returns DependencyRule:
+	(leftNode = DependencyRuleNode '-' dTag=DependencyMatcher '->' rightNode = (DependencyRuleNode|FreeDependencyRule))
+;
+
+DependencyRuleNode:
+	(ExplicitDependencyRuleNode | DependencyRuleOptionNode | DependencyRuleTreeNode)
+;
+
+DependencyRuleNonTreeNode returns DependencyRuleNode:
+	(ExplicitDependencyRuleNode | DependencyRuleOptionNode)
+;
+
+DependencyRuleOptionNode:
+	'(' leftNode = ExplicitDependencyRuleNode ( '|' rightNodes += ExplicitDependencyRuleNode )+ ')'
+;
+
+DependencyRuleTreeNode:
+	(matcher = TokenMatcher ":")? tree = Subtree 
+;
+
+ExplicitDependencyRuleNode:
+	matcher = TokenMatcher
+;
+
+Subtree:
+	'[' name = [TreeTag] ']'
+;
+
+TokenMatcher:
+	anyMatcher ?= "*" |
+	( matchToken?="match" "token" (name=STRING) ) | 
+	(
+		(matcher+= (RegexMatcher|LemmaMatcher|StemMatcher|POSMatcher))
+		(":" matcher+= (RegexMatcher|LemmaMatcher|StemMatcher|POSMatcher))*
+	) 
+;
+
+RegexMatcher:
+	regex = STRING
+;
+
+LemmaMatcher:
+	"LEMMA" "=" regex=STRING
+;
+
+StemMatcher:
+	"STEM" "=" regex=STRING
+;
+
+POSMatcher:
+	"POS" "=" (
+		((tags+=[POSTag|ID]) |  ("*" groups+=[POSTagGroup|ID]))
+		("," ((tags+=[POSTag|ID]) |  ("*" groups+=[POSTagGroup|ID])))*
+	)
+;
+
+DependencyMatcher:
+	anyMatcher ?= "*" | (
+		( (tags+=[DependencyTag|ID]) | ("*" tagGroups+=[DependencyTagGroup|ID]))
+		("," ((tags+=[DependencyTag|ID]) | ("*" tagGroups+=[DependencyTagGroup|ID])))*
+	)
+;
+
+/*
+TokenGrammarDefintion:
+	"def" "token" "grammar" name=QualifiedName "{"
+	 	
+	 "}"
+;
+ */
+ 
+// POS Tagset
+ 
+POSTagsetDefintion:
+	"def" "tagset" "parts-of-speech" name = QualifiedName "{" 
+		(tags += POSTag)* (tagGroups+= POSTagGroup)* 
+	"}"
+;
+
+POSTag:
+	name=ID ( "=" tagname = STRING)?
+;
+
+POSTagGroup:
+	"def" "subset" name = ID "{" 
+		(tags += [POSTag|ID]) ("," tags += [POSTag|ID])* 
+	"}"
+;
+
+// Depedency Tagset 
+
+DependencyTagsetDefinition:
+	"def" "tagset" "dependencies" name = QualifiedName "{" 
+		(tags += DependencyTag)* (tagGroups+= DependencyTagGroup)* 
+	"}"
+;
+
+DependencyTag:
+	name=ID ("=" tagname = STRING)?
+;
+
+DependencyTagGroup:
+	"def" "subset" name = ID "{" 
+		(tags += [DependencyTag|ID]) ("," tags += [DependencyTag|ID])* 
+	"}"
+;
+
+QualifiedName:
+	ID ("." ID)* 
+;
+
+QualifiedNameWithWildcard:
+	QualifiedName ('.' '*')?
+;
